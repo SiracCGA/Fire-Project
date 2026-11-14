@@ -1,13 +1,13 @@
 from ultralytics import YOLO
 import cv2
 import time
-import Old.ai as ai
+import ai as ai
 import threading
 import queue
 
 class ai_runner:
     def __init__(self, output_queue):
-        self.model = YOLO("best_ncnn_model/")
+        self.model = YOLO("../best.pt")
         self.config = {
             "confidence": 0.5,
             "imgsz": 320,

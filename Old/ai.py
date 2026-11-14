@@ -18,7 +18,7 @@ class ai:
     def ai(self, frame):
         current_frame = frame.copy()
         if self.frame_counter % self.frame_skip == 0:
-            results = self.model.predict(frame, conf=self.config["confidence"], verbose=False, imgsz=self.config["imgsz"], device="vulkan:0")
+            results = self.model.predict(frame, conf=self.config["confidence"], verbose=False, imgsz=self.config["imgsz"], device="0")
 
             self.elasped_time = time.perf_counter() - self.start
             self.yolo_fps = 1 / self.elasped_time
