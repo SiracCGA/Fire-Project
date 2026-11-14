@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 import cv2
 import time
-import ai
+import Old.ai as ai
 import threading
 import queue
 

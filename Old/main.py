@@ -1,6 +1,6 @@
 import cv2
-from ai_runner import ai_runner
-from flask_worker import init_flask, run_flask
+from Old.ai_runner import ai_runner
+from Old.flask_worker import init_flask, run_flask
 import queue
 
 if __name__ == "__main__":
