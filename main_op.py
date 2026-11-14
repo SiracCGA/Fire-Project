@@ -153,19 +153,42 @@ class Main:
             self.output_queue.put(frame_to_process)
 
 if __name__ == "__main__":
-    model = YOLO("best.pt")
 
+    ####################Settings####################
+    device = "cuda"
+    confidence = 0.5
+    frame_skip = 1
+    imgsz = 320
+    camera = 0
+    box_color = (0,0,255)
+    fps_color = (0,255,0)
+    show_fps = True
+    detect_label = "Fire"
+    #################################################
+
+
+    if device == "cuda":
+        model = YOLO("models/best.pt")
+        devic = "0"
+    elif device == "cpu":
+        model = YOLO("models/best_int8_openvino_model")
+        devic = "cpu"
+    elif device == "vulkan":
+        model = YOLO("models/best_ncnn_model")
+        devic = "vulkan:0"
+    else:
+        raise ValueError ("device: cuda, cpu, vulkan bunlardan biri olmalıdır!!")
     app = Main(
         model=model,
-        confidence=0.5,
-        frame_skip=1,
-        imgsz=320,
-        device="0",
-        camera=0,
-        detect_lbl="Fire",
-        detect_clr=(255, 0, 0),
-        fps_txt=True,
-        fpstxt_clr=(0, 255, 0)
+        confidence=confidence,
+        frame_skip=frame_skip,
+        imgsz=imgsz,
+        device=devic,
+        camera=camera,
+        detect_lbl=detect_label,
+        detect_clr=box_color,
+        fps_txt=show_fps,
+        fpstxt_clr=fps_color
     )
 
     try:
