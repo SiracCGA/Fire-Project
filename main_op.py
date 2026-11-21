@@ -155,7 +155,7 @@ class Main:
 if __name__ == "__main__":
 
     ####################Settings####################
-    device = "cuda"
+    device = "cpu"
     confidence = 0.5
     frame_skip = 1
     imgsz = 320
