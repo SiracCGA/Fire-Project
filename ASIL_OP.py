@@ -80,7 +80,7 @@ class Main:
         self.ai_thread.start()
 
         self.flask_routes()
-        self.app.run(host="0.0.0.0", port=5000, threaded=True, use_reloader=False)
+        self.app.run(host="0.0.0.0", port=5500, threaded=True, use_reloader=False)
             
     def stop(self):
         self.running = False

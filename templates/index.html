@@ -3,14 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="static/style.css">
     <title>Arayüz</title>
 </head>
 <body>
     <div class="label">
-        <img src="logo.png">
-        <h1>ARMOR-X:</h1>
-        <h2>Otonom Yangın Müdahale Sistemi</h2>
+        <h1>Otonom Yangın Müdahale Sistemi</h1>
 
         <div class="status-bar">
             <div class="status-left">
@@ -26,32 +24,6 @@
     </div>
 
     <div class="top-container">
-        <nav class="sidebar">
-            <a class="nav-item active" onclick="menuSec(this)">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3z"/></svg>
-                <span>Ana Panel</span>
-            </a>
-            <a class="nav-item" onclick="menuSec(this)">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm3 4v2h2V8zm4 0v2h2V8zm4 0v2h2V8zM7 12v2h2v-2zm4 0v2h2v-2zm4 0v2h2v-2zM7 16v2h2v-2zm4 0v2h2v-2zm4 0v2h2v-2z"/></svg>
-                <span>ESP32 Yönetimi</span>
-            </a>
-            <a class="nav-item" onclick="menuSec(this)">
-                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M6 7l4 4M18 7l-4 4M6 17l4-4M18 17l-4-4" stroke="currentColor" stroke-width="1.5"/></svg>
-                <span>AI Ayarları</span>
-            </a>
-            <a class="nav-item" onclick="menuSec(this)">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5v5l4 2-.8 1.7L11 13V7z"/></svg>
-                <span>Yangın Geçmişi</span>
-            </a>
-            <a class="nav-item" onclick="menuSec(this)">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm2 4v2h2V7zm4 0v2h8V7zm-4 4v2h2v-2zm4 0v2h8v-2zm-4 4v2h2v-2zm4 0v2h8v-2z"/></svg>
-                <span>Sistem Logları</span>
-            </a>
-            <a class="nav-item" onclick="menuSec(this)">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.4 13a7.7 7.7 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.7 7.7 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
-                <span>Ayarlar</span>
-            </a>
-        </nav>
         <div class="left-side">
             <div class="log-panel">
                 <div class="log-scroll">
@@ -114,32 +86,6 @@
                     
                 </div>
                 
-            </div>
-            <div class="bottom-panel">
-                
-                <div class="pump-control-box">
-                    <div class="pump-header">
-                        <span>Kamera Yönü</span>
-                    </div>
-
-                    <div class="gauge-wrapper">
-                        <div class="gauge-circle" id="pumpGauge" style="--angle: 90deg;">
-                            <div class="gauge-inner">
-                                <span class="gauge-label">Kamera Yönü</span>
-                                <span class="gauge-value" id="gaugeText">90°</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mod-panel">
-                    <div class="panel-baslik">Çalışma Modu</div>
-                    <div class="buton-grubu">
-                    <button type="button" class="mod-btn" onclick="modSec(this)">Manuel</button>
-                    <button type="button" class="mod-btn active" onclick="modSec(this)">Otomatik</button>
-                    </div>
-                </div>
-
             </div>
             </div>
 
@@ -218,5 +164,5 @@
         </div>
     </div>
 </body>
-<script src="script.js"></script>
+<script src="static/script.js"></script>
 </html>

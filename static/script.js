@@ -1,12 +1,12 @@
 /* =====================================================
-   ARMOR-X ARAYÜZ SCRIPTİ
+   ARMOR-X ARAYÜZ SCRIPTİ (Flask ile haberleşir)
    Bölümler:
    0. Ayarlar
    1. Yardımcılar
    2. Üst bar (saat, tarih, çalışma süresi)
-   3. Arayüz güncelleyiciler (sensör, ESP32, CPU/RAM, log...)
-   4. Kamera yayınları (Flask HTTP stream)
-   5. WebSocket (Python bağlantısı)
+   3. Arayüz güncelleyiciler (sensör, ESP32, CPU/RAM, log, radar...)
+   4. Kamera yayını (Flask HTTP stream)
+   5. Flask bağlantısı (durum çekme + komut gönderme)
    6. Çalışma modu ve menü
    7. Terminal
    ===================================================== */
@@ -15,19 +15,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ===== 0. AYARLAR ===== */
     const CONFIG = {
-        // Python WebSocket sunucusu (server.py)
-        WS_URL: `ws://${location.hostname || 'localhost'}:8765`,
-        WS_RETRY_MS: 2000,
-
-        // Flask MJPEG yayın adresleri (kendi route'larına göre değiştir)
-        STREAMS: {
-            1: `http://${location.hostname || 'localhost'}:5000/video_feed`,
-            2: `http://${location.hostname || 'localhost'}:5000/video_feed2`,
-        },
+        // Arayüz Flask'tan açıldığı için adresler göreli (aynı sunucu)
+        STREAM_URL: '/video',          // kendi MJPEG route'una göre değiştir
         STREAM_RETRY_MS: 3000,
 
-        MAX_LOG: 100,       // Log panelinde tutulacak en fazla satır
-        MAX_ALARM: 100,     // Alarm panelinde tutulacak en fazla satır
+        POLL_MS: 1000,                      // Python'dan veri çekme aralığı
+        POLL_TIMEOUT_MS: 3000,
+
+        MAX_LOG: 100,
+        MAX_ALARM: 100,
     };
 
     /* ===== 1. YARDIMCILAR ===== */
@@ -38,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Son gelen değerler (terminal "status" komutu için)
     const durum = { cpu: 0, ram: 0 };
 
-    // Eleman referansları
     const el = {
         date: $('dateText'),
         time: $('timeText'),
@@ -118,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function halkaGuncelle(bar, v) {
-        if (!bar) return;
+        if (!bar) return 0;
         const yuzde = Math.max(0, Math.min(100, Math.round(v)));
         bar.style.setProperty('--value', `${yuzde}%`);
         const ic = bar.querySelector('.circle-inner');
@@ -194,10 +189,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /* ===== 4. KAMERA YAYINLARI (Flask HTTP stream) ===== */
-    function yayinBaslat(no) {
+    /* ===== 4. KAMERA YAYINI (Flask HTTP stream) ===== */
+    function yayinBaslat(no, url) {
         const img = $(`pythonStream${no}`);
-        const url = CONFIG.STREAMS[no];
         if (!img || !url) return;
 
         const baglan = () => {
@@ -212,21 +206,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         baglan();
     }
-    Object.keys(CONFIG.STREAMS).forEach(yayinBaslat);
+    yayinBaslat(1, CONFIG.STREAM_URL);
 
-    /* ===== 5. WEBSOCKET (Python bağlantısı) ===== */
-    let ws = null;
+    /* ===== 5. FLASK BAĞLANTISI ===== */
+    let bagli = false;
+    let sonId = null;       // en son alınan log/algılama olay numarası
 
-    function gonder(nesne) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(nesne));
-            return true;
-        }
-        return false;
-    }
-
-    // Python'dan gelen tek mesaj, birden fazla alan içerebilir.
-    // Örnek: {"temp": 26.4, "humidity": 45, "gas": false, "ir": [1,0,1], "cpu": 65, "ram": 40}
+    // Python'dan gelen mesaj, birden fazla alan içerebilir.
     function mesajIsle(m) {
         if (m.temp !== undefined)     sicaklikGuncelle(m.temp);
         if (m.humidity !== undefined) nemGuncelle(m.humidity);
@@ -241,54 +227,121 @@ document.addEventListener('DOMContentLoaded', () => {
         if (m.alarm !== undefined)    alarmGuncelle(m.alarm);
         if (m.uptime !== undefined)   baslangic = Date.now() - m.uptime * 1000;
 
-        // FPS: [28.7, 0] ya da {"1": 28.7, "2": 0}
-        if (m.fps !== undefined) {
-            Object.entries(m.fps).forEach(([k, v]) => fpsGuncelle(Number(k) + (Array.isArray(m.fps) ? 1 : 0), v));
-        }
+        // FPS: [28.7] (kamera 1), [28.7, 0] (kamera 1 ve 2)
+        if (Array.isArray(m.fps)) m.fps.forEach((v, i) => fpsGuncelle(i + 1, v));
 
-        // Log: {"log": {"level": "warning", "text": "..."}}
-        if (m.log)        logEkle(m.log.level, m.log.text);
-        // Algılama / ihbar: {"detection": "Yüksek sıcaklık uyarısı"}
-        if (m.detection)  algilamaEkle(m.detection);
-        // Terminal cevabı: {"terminal": "komut çıktısı"}
+        if (m.log)       logEkle(m.log.level, m.log.text);
+        if (m.detection) algilamaEkle(m.detection);
         if (m.terminal !== undefined) terminalSatiriEkle(m.terminal, true);
     }
 
-    function wsBaglan() {
-        ws = new WebSocket(CONFIG.WS_URL);
+    function baglantiKoptu() {
+        if (!bagli) return;                 // zaten kopuk, tekrar yazma
+        bagli = false;
+        baglantiDurumuGoster(false);
+        espGuncelle([false, false, false, false]);
+        logEkle('error', 'BAĞLANTI KESİLDİ! Yeniden deneniyor...');
+    }
 
-        ws.onopen = () => {
-            baglantiDurumuGoster(true);
-            logEkle('info', 'Python sunucusuna bağlanıldı.');
-        };
+    // Durumu çek, bitince POLL_MS sonra tekrar çek (istekler üst üste binmez)
+    async function durumCek() {
+        try {
+            const url = sonId === null ? '/api/durum' : `/api/durum?son=${sonId}`;
+            const r = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(CONFIG.POLL_TIMEOUT_MS) });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const m = await r.json();
 
-        ws.onmessage = (olay) => {
-            try {
-                mesajIsle(JSON.parse(olay.data));
-            } catch (hata) {
-                console.warn('Geçersiz mesaj:', olay.data, hata);
+            if (!bagli) {
+                bagli = true;
+                baglantiDurumuGoster(true);
+                logEkle('info', 'Sunucuya bağlanıldı.');
             }
-        };
 
-        ws.onclose = () => {
-            baglantiDurumuGoster(false);
-            espGuncelle([false, false, false, false]);
-            logEkle('error', 'BAĞLANTI KESİLDİ! Yeniden deneniyor...');
-            setTimeout(wsBaglan, CONFIG.WS_RETRY_MS);
-        };
+            const olaylar = m.olaylar || [];
+            if (m.son_id !== undefined) sonId = m.son_id;
+            delete m.olaylar;
+            delete m.son_id;
 
-        ws.onerror = () => ws.close();
+            olaylar.forEach(mesajIsle);     // log / algılama satırları
+            mesajIsle(m);                   // anlık değerler
+        } catch (hata) {
+            baglantiKoptu();
+        } finally {
+            setTimeout(durumCek, CONFIG.POLL_MS);
+        }
     }
 
     baglantiDurumuGoster(false);
-    wsBaglan();
+    durumCek();
+
+    // Python'a komut yolla: komutGonder('mode', 'manual'). Başarılıysa true döner.
+    async function komutGonder(cmd, value) {
+        try {
+            const r = await fetch('/api/komut', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cmd, value }),
+                signal: AbortSignal.timeout(CONFIG.POLL_TIMEOUT_MS),
+            });
+
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+            const data = await r.json();
+
+            // Normal komut (mode vb.)
+            if (data.mode !== undefined) {
+                mesajIsle(data);
+                return true;
+            }
+
+            // Terminal komutu
+            if (data.status === "processing" && data.id) {
+                komutSonucBekle(data.id);
+                return true;
+            }
+
+            return false;
+
+        } catch (hata) {
+            console.error("Komut hatası:", hata);
+            return false;
+        }
+    }
+
+    async function komutSonucBekle(id) {
+        try {
+            const r = await fetch(`/api/komut/sonuc/${id}`, {
+                signal: AbortSignal.timeout(CONFIG.POLL_TIMEOUT_MS)
+            });
+
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+            const data = await r.json();
+
+            if (data.status === "completed") {
+                mesajIsle({
+                    terminal: data.result
+                });
+                return;
+            }
+
+            if (data.status === "processing") {
+                setTimeout(() => komutSonucBekle(id), 300);
+            }
+
+        } catch (hata) {
+            console.error("Sonuç bekleme hatası:", hata);
+            setTimeout(() => komutSonucBekle(id), 1000);
+        }
+    }
+
 
     /* ===== 6. ÇALIŞMA MODU VE MENÜ ===== */
     // HTML'deki onclick="modSec(this)" bunu çağırır
-    window.modSec = function (btn) {
+    window.modSec = async function (btn) {
         const mod = btn.textContent.trim().toLowerCase() === 'manuel' ? 'manual' : 'auto';
         modGoster(mod);
-        if (!gonder({ cmd: 'mode', value: mod })) {
+        if (!(await komutGonder('mode', mod))) {
             logEkle('warning', 'Mod değişikliği gönderilemedi: sunucu bağlı değil.');
         }
     };
@@ -311,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (el.terminalInput && el.terminalBody) {
-        el.terminalInput.addEventListener('keydown', function (e) {
+        el.terminalInput.addEventListener('keydown', async function (e) {
             if (e.key !== 'Enter') return;
 
             const komut = this.value.trim();
@@ -323,22 +376,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Tarayıcıda çözülen komutlar
             if (kucuk === 'clear') {
+                // Terminali temizle
                 el.terminalBody.innerHTML = '';
+
+                // Arayüzdeki log ve algılama kayıtlarını temizle
+                if (el.logScroll) el.logScroll.innerHTML = '';
+                if (el.alarmBody) el.alarmBody.innerHTML = '';
+
+                // Python tarafındaki olay kayıtlarını da temizle
+                try {
+                    const r = await fetch('/api/olaylar/temizle', {
+                        method: 'POST',
+                        signal: AbortSignal.timeout(CONFIG.POLL_TIMEOUT_MS)
+                    });
+
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+                } catch (hata) {
+                    console.error('Olaylar temizlenemedi:', hata);
+                    terminalSatiriEkle('Python tarafındaki olaylar temizlenemedi!', true);
+                }
             } else if (kucuk === 'help') {
-                terminalSatiriEkle('Mevcut komutlar: help, clear, status, connect (diğerleri Python\'a gönderilir)', true);
+                terminalSatiriEkle("Mevcut komutlar: help, clear, status, connect (diğerleri Python'a gönderilir)", true);
             } else if (kucuk === 'status') {
-                const bagli = ws && ws.readyState === WebSocket.OPEN;
                 terminalSatiriEkle(`Sunucu: ${bagli ? 'bağlı' : 'bağlı değil'}. CPU: %${durum.cpu}, RAM: %${durum.ram}`, true);
             } else if (kucuk === 'connect') {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    terminalSatiriEkle('Zaten bağlı.', true);
-                } else {
-                    terminalSatiriEkle('Sunucuya bağlanılıyor...', true);
-                    if (!ws || ws.readyState === WebSocket.CLOSED) wsBaglan();
-                }
+                terminalSatiriEkle(bagli ? 'Sunucuya zaten bağlı.' : 'Sunucu yanıt vermiyor, otomatik yeniden deneniyor...', true);
             } else {
                 // Diğer her şeyi Python'a yolla, cevap {"terminal": "..."} olarak döner
-                if (!gonder({ cmd: 'terminal', value: komut })) {
+                if (!(await komutGonder('terminal', komut))) {
                     terminalSatiriEkle(`'${komut}' gönderilemedi: sunucu bağlı değil.`, true);
                 }
             }
